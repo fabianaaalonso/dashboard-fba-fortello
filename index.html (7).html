@@ -1,0 +1,871 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Rotina FBA · v1.7.2 Comentários + Envios Amazon</title>
+<link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>📋</text></svg>">
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background: #0f172a; color: #e2e8f0; height: 100vh; width: 100vw; overflow: hidden; padding: 5px 10px; font-size: 11px; }
+  .container { height: 100%; display: flex; flex-direction: column; }
+  .header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 5px; }
+  .title-block h1 { font-size: 18px; font-weight: 800; }
+  .week-nav { display: flex; align-items: center; gap: 5px; background: #1e293b; border: 1px solid #334155; border-radius: 6px; padding: 2px 8px; }
+  .week-nav button { background: #334155; border: 1px solid #475569; color: #fff; cursor: pointer; font-size: 12px; padding: 1px 4px; border-radius: 3px; }
+  .week-nav .week-label { font-weight: 700; font-size: 11px; min-width: 140px; text-align: center; }
+  .progress-section { background: #1e293b; border: 1px solid #334155; border-radius: 8px; padding: 4px 10px; margin-bottom: 5px; }
+  .progress-info { display: flex; justify-content: space-between; margin-bottom: 2px; font-size: 11px; font-weight: 700; }
+  .progress-bar-bg { height: 6px; background: #0f172a; border-radius: 999px; overflow: hidden; border: 1px solid #334155; }
+  .progress-bar-fill { height: 100%; background: linear-gradient(90deg, #22c55e, #16a34a); width: 0%; transition: width 0.6s ease; }
+  .quadro-geral { display: grid; grid-template-columns: repeat(8, 1fr); gap: 5px; flex: 1; min-height: 0; }
+  .col { background: #1e293b; border: 1px solid #334155; border-radius: 8px; display: flex; flex-direction: column; min-height: 0; padding: 5px; }
+  .col.emergencial { background: rgba(239, 68, 68, 0.05); border-color: rgba(239, 68, 68, 0.3); }
+  .col-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 5px; padding-bottom: 4px; border-bottom: 1px solid #334155; flex-shrink: 0; }
+  .col-header .name { font-size: 12px; font-weight: 800; }
+  .col-header .plus-btn { background: #3b82f6; color: #fff; border: none; width: 18px; height: 18px; border-radius: 3px; cursor: pointer; font-weight: 900; font-size: 14px; display: flex; align-items: center; justify-content: center; }
+  
+  /* AJUSTE DE ROLAGEM NAS COLUNAS */
+  .task-list { 
+    flex: 1; 
+    overflow-y: auto; 
+    padding-right: 4px; 
+    padding-bottom: 80px; /* ESPAÇO DE SEGURANÇA PARA A ÚLTIMA TAREFA */
+  }
+  .task-list::-webkit-scrollbar { width: 4px; }
+  .task-list::-webkit-scrollbar-track { background: rgba(15, 23, 42, 0.3); border-radius: 10px; }
+  .task-list::-webkit-scrollbar-thumb { background: #3b82f6; border-radius: 10px; }
+  .task-list::-webkit-scrollbar-thumb:hover { background: #2563eb; }
+  
+  .task { 
+    background: #0f172a; 
+    border-radius: 6px; 
+    padding: 5px; 
+    margin-bottom: 4px; 
+    border: 1px solid #1e293b; 
+    position: relative; 
+    transition: all 0.2s ease-in-out;
+    z-index: 1;
+  }
+  .task:hover { 
+    transform: scale(1.05); 
+    z-index: 100; 
+    box-shadow: 0 10px 20px rgba(0,0,0,0.5); 
+    border-color: #3b82f6;
+    background: #1e293b;
+  }
+  .task:hover .task-text { font-size: 13px; color: #fff; }
+  .task:hover .task-controls select, .task:hover .task-controls button { transform: scale(1.1); }
+
+  .task.done { border-color: #22c55e; background: rgba(34, 197, 94, 0.05); }
+  .task-text { font-size: 11px; font-weight: 700; color: #f8fafc; margin-bottom: 4px; white-space: pre-wrap; line-height: 1.2; transition: font-size 0.2s; }
+  .farol { width: 14px; height: 14px; border-radius: 50%; cursor: pointer; flex-shrink: 0; border: 1px solid rgba(255,255,255,0.2); }
+  .farol[data-state="todo"] { background: #3b82f6; }
+  .farol[data-state="doing"] { background: #fbbf24; animation: pulse 1.5s infinite; }
+  .farol[data-state="done"] { background: #22c55e; }
+  @keyframes pulse { 0%, 100% { transform: scale(1); opacity: 1; } 50% { transform: scale(1.1); opacity: 0.7; } }
+  .task-controls { display: flex; gap: 3px; flex-wrap: wrap; align-items: center; }
+  .resp-select, .prio-select { font-size: 8px; background: #1e293b; color: #fff; border: 1px solid #334155; padding: 1px 2px; border-radius: 2px; font-weight: 600; transition: transform 0.2s; }
+  .prio-select[data-prio="Baixa"] { color: #60a5fa; border-color: #3b82f6; }
+  .prio-select[data-prio="Média"] { color: #fbbf24; border-color: #d97706; }
+  .prio-select[data-prio="Alta"] { color: #f87171; border-color: #ef4444; }
+  .action-btn { background: #1e293b; border: 1px solid #475569; color: #fff; font-size: 8px; padding: 1px 3px; border-radius: 2px; font-weight: 600; cursor: pointer; transition: transform 0.2s; }
+  .action-btn.active { border-color: #fbbf24; color: #fbbf24; }
+
+  .clip-btn { border-color:#38bdf8; color:#7dd3fc; }
+  .clip-btn.has-files { border-color:#22c55e; color:#86efac; background:rgba(34,197,94,.08); }
+  .attach-list { margin-top:4px; display:flex; flex-direction:column; gap:2px; max-height:90px; overflow-y:auto; }
+  .attach-title { font-size:8px; color:#7dd3fc; font-weight:800; margin:1px 0; }
+  .attach-item { display:flex; align-items:center; gap:3px; background:#111827; border:1px solid #334155; border-radius:3px; padding:2px 3px; font-size:8px; }
+  .attach-file-name { flex:1; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; color:#7dd3fc; font-size:8px; }
+  .attach-mini { background:#0f172a; border:1px solid #334155; color:#cbd5e1; cursor:pointer; font-size:8px; border-radius:2px; padding:0 3px; flex-shrink:0; }
+  .attach-mini:hover { border-color:#38bdf8; color:#e0f2fe; }
+  .attach-mini.del { color:#f87171; border-color:rgba(248,113,113,.45); }
+  .weekly-attachments-btn { background:#0f172a; border:1px solid #38bdf8; color:#7dd3fc; border-radius:999px; padding:3px 8px; font-size:10px; font-weight:800; cursor:pointer; }
+  .weekly-attachments-btn:hover { background:rgba(56,189,248,.12); }
+  .weekly-panel-backdrop { position:fixed; inset:0; background:rgba(2,6,23,.70); z-index:2000; display:none; }
+  .weekly-panel-backdrop.open { display:block; }
+  .weekly-panel { position:fixed; top:18px; right:18px; bottom:18px; width:min(520px, calc(100vw - 36px)); background:#0f172a; border:1px solid #334155; border-radius:12px; z-index:2001; display:none; flex-direction:column; box-shadow:0 24px 60px rgba(0,0,0,.55); }
+  .weekly-panel.open { display:flex; }
+  .weekly-panel-header { display:flex; align-items:center; justify-content:space-between; gap:10px; padding:12px; border-bottom:1px solid #334155; }
+  .weekly-panel-header h3 { font-size:14px; color:#e2e8f0; }
+  .weekly-panel-header button { background:#1e293b; border:1px solid #475569; color:#fff; border-radius:6px; padding:4px 8px; cursor:pointer; }
+  .weekly-panel-body { padding:10px; overflow-y:auto; display:flex; flex-direction:column; gap:8px; }
+  .weekly-att-card { border:1px solid #334155; border-radius:8px; padding:8px; background:#111827; }
+  .weekly-att-meta { color:#94a3b8; font-size:10px; margin-bottom:5px; }
+  .weekly-att-name { color:#e0f2fe; font-size:11px; font-weight:800; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; margin-bottom:6px; }
+  .weekly-att-actions { display:flex; gap:5px; flex-wrap:wrap; }
+  .weekly-att-actions button { background:#0f172a; border:1px solid #334155; color:#cbd5e1; border-radius:4px; padding:3px 7px; font-size:10px; cursor:pointer; }
+  .weekly-att-actions button:hover { border-color:#38bdf8; color:#e0f2fe; }
+  .weekly-att-actions .del { color:#f87171; border-color:rgba(248,113,113,.45); }
+  .col-actions { display:flex; gap:3px; align-items:center; }
+  .day-attach-list { margin-bottom:4px; }
+  .expand-area { margin-top: 4px; padding-top: 4px; border-top: 1px dashed #475569; display: none; }
+  .expand-area.open { display: block; }
+  .obs-textarea { width: 100%; background: #1e293b; border: 1px solid #475569; border-radius: 4px; padding: 6px; color: #f1f5f9; font-size: 10px; min-height: 120px; resize: vertical; outline: none; line-height:1.35; }
+  .add-task-box { margin-top: 5px; border: 1px solid #3b82f6; padding: 5px; border-radius: 4px; background: #0f172a; flex-shrink: 0; }
+  .add-task-area { width: 100%; background: #1e293b; border: 1px solid #475569; border-radius: 3px; padding: 6px; color: #fff; font-size: 10px; min-height: 86px; resize: vertical; outline: none; margin-bottom: 4px; }
+  .save-btn { background: #22c55e; color: #fff; border: none; padding: 2px 6px; border-radius: 3px; font-size: 9px; font-weight: 700; cursor: pointer; }
+  #toast { position:fixed; bottom:15px; right:15px; padding:8px 15px; border-radius:6px; font-size:10px; font-weight:700; opacity:0; transition:0.3s; z-index:1000; color:#fff; }
+  #toast.success { background:#22c55e; border:1px solid #16a34a; }
+  #toast.error { background:#ef4444; border:1px solid #dc2626; }
+  .rt-indicator { display:inline-flex; align-items:center; gap:5px; background:#1e293b; border:1px solid #334155; border-radius:999px; padding:3px 8px; font-size:10px; font-weight:800; color:#94a3b8; }
+  .rt-dot { width:8px; height:8px; border-radius:50%; background:#64748b; }
+  .rt-indicator.live { color:#4ade80; border-color:rgba(34,197,94,.45); }
+  .rt-indicator.live .rt-dot { background:#22c55e; box-shadow:0 0 8px rgba(34,197,94,.7); animation:pulse 1.5s infinite; }
+  .rt-indicator.error { color:#f87171; border-color:rgba(239,68,68,.45); }
+  .rt-indicator.error .rt-dot { background:#ef4444; }
+  .task.flash { animation: flashTask 1.2s ease; }
+  @keyframes flashTask { 0% { background: rgba(59,130,246,.35); border-color:#60a5fa; } 100% { background:#0f172a; } }
+
+
+  /* LOGIN SEGURO */
+  .login-screen { position: fixed; inset: 0; background: radial-gradient(circle at top, #1e293b 0%, #0f172a 55%, #020617 100%); z-index: 5000; display: flex; align-items: center; justify-content: center; padding: 20px; }
+  .login-card { width: min(420px, 95vw); background:#111827; border:1px solid #334155; border-radius:16px; padding:24px; box-shadow:0 24px 80px rgba(0,0,0,.55); }
+  .login-card h2 { font-size:22px; margin-bottom:6px; color:#f8fafc; }
+  .login-card p { color:#94a3b8; font-size:12px; margin-bottom:18px; line-height:1.4; }
+  .login-card label { display:block; color:#cbd5e1; font-size:11px; font-weight:800; margin:10px 0 5px; }
+  .login-card input { width:100%; background:#0f172a; border:1px solid #334155; border-radius:8px; color:#f8fafc; padding:10px; outline:none; font-size:13px; }
+  .login-card input:focus { border-color:#38bdf8; box-shadow:0 0 0 3px rgba(56,189,248,.12); }
+  .login-btn { margin-top:16px; width:100%; border:none; border-radius:8px; background:#2563eb; color:white; padding:11px; font-weight:900; cursor:pointer; }
+  .login-btn:hover { background:#1d4ed8; }
+  .login-error { margin-top:10px; color:#f87171; font-size:11px; min-height:16px; }
+  .user-chip { display:inline-flex; align-items:center; gap:6px; background:#0f172a; border:1px solid #334155; color:#cbd5e1; border-radius:999px; padding:3px 8px; font-size:10px; font-weight:800; }
+  .logout-btn { background:#1e293b; border:1px solid #475569; color:#fff; border-radius:999px; padding:3px 8px; font-size:10px; font-weight:800; cursor:pointer; }
+  .logout-btn:hover { border-color:#f87171; color:#fecaca; }
+  .delete-task-btn { color:#f87171; border-color:rgba(248,113,113,.55); }
+  .delete-task-btn:hover { background:rgba(239,68,68,.12); color:#fecaca; }
+
+  .obs-visible { margin-top:5px; border:1px solid #334155; border-radius:6px; background:rgba(15,23,42,.55); padding:5px; }
+  .obs-visible.has-comment { border-color:rgba(251,191,36,.55); background:rgba(251,191,36,.05); }
+  .obs-title { font-size:9px; color:#fbbf24; font-weight:900; margin-bottom:4px; display:flex; justify-content:space-between; gap:6px; }
+  .task-audit { font-size:8px; color:#94a3b8; margin-top:4px; display:flex; flex-wrap:wrap; gap:5px; }
+  .shipment-panel { background:rgba(59,130,246,.07); border:1px solid rgba(59,130,246,.35); border-radius:7px; padding:5px; margin-bottom:6px; flex-shrink:0; }
+  .shipment-title { display:flex; justify-content:space-between; align-items:center; gap:4px; color:#bfdbfe; font-size:10px; font-weight:900; margin-bottom:4px; }
+  .shipment-card { background:#0f172a; border:1px solid #334155; border-radius:6px; padding:5px; margin-top:5px; }
+  .shipment-card-header { display:flex; align-items:center; justify-content:space-between; gap:4px; margin-bottom:4px; }
+  .shipment-card-header strong { font-size:9px; color:#e0f2fe; }
+  .shipment-row { display:grid; grid-template-columns: 44px 42px minmax(0,1fr); gap:3px; align-items:center; margin-top:3px; }
+  .shipment-row label { font-size:8px; color:#94a3b8; font-weight:800; }
+  .shipment-input { width:100%; background:#1e293b; border:1px solid #475569; color:#fff; border-radius:3px; padding:3px; font-size:9px; outline:none; }
+  .shipment-input:focus { border-color:#38bdf8; }
+  .shipment-date { display:flex; align-items:center; gap:3px; margin-bottom:4px; }
+  .shipment-date span { font-size:8px; color:#94a3b8; font-weight:800; }
+  .shipment-actions { display:flex; gap:3px; flex-wrap:wrap; margin-top:5px; }
+  .shipment-small-btn { background:#111827; border:1px solid #475569; color:#e2e8f0; border-radius:3px; padding:2px 4px; font-size:8px; font-weight:800; cursor:pointer; }
+  .shipment-small-btn:hover { border-color:#38bdf8; }
+  .shipment-small-btn.del { color:#fca5a5; border-color:rgba(248,113,113,.45); }
+  .shipment-empty { color:#94a3b8; font-size:9px; padding:3px 0; }
+
+</style>
+</head>
+<body>
+<div id="loginScreen" class="login-screen">
+  <div class="login-card">
+    <h2>🔐 Acesso Fortello</h2>
+    <p>Entre com seu e-mail e senha para acessar o Dashboard FBA.</p>
+    <label for="loginEmail">E-mail</label>
+    <input id="loginEmail" type="email" autocomplete="email" placeholder="seu@email.com">
+    <label for="loginPassword">Senha</label>
+    <input id="loginPassword" type="password" autocomplete="current-password" placeholder="Digite sua senha">
+    <button class="login-btn" onclick="window.RotinaFBA.login()">Entrar</button>
+    <div id="loginError" class="login-error"></div>
+  </div>
+</div>
+<div class="container" id="mainApp" style="display:none;">
+  <div class="header">
+    <div class="title-block"><h1>Rotina FBA</h1><p>Dashboard v1.7.2 · Comentários + Envios Amazon</p></div>
+    <div style="display:flex; align-items:center; gap:8px; flex-wrap:wrap; justify-content:flex-end;">
+      <span id="userChip" class="user-chip" style="display:none;">👤 <span id="userEmail"></span></span>
+      <button id="logoutBtn" class="logout-btn" onclick="window.RotinaFBA.logout()" style="display:none;">Sair</button>
+      <div id="rtIndicator" class="rt-indicator"><span class="rt-dot"></span><span id="rtLabel">Conectando...</span></div>
+      <button class="weekly-attachments-btn" onclick="window.RotinaFBA.refreshDashboard()" title="Atualizar dados do Supabase">🔄 Atualizar</button>
+      <button class="weekly-attachments-btn" onclick="window.RotinaFBA.toggleWeeklyAttachments()">📚 Anexos da semana <span id="weeklyAttachCount">0</span></button>
+      <div class="week-nav">
+      <button onclick="window.RotinaFBA.changeWeek(-1)">◀</button>
+      <span class="week-label" id="weekLabel">Carregando...</span>
+      <button onclick="window.RotinaFBA.changeWeek(1)">▶</button>
+      <button onclick="window.RotinaFBA.goToday()">Hoje</button>
+      </div>
+    </div>
+  </div>
+  <div class="progress-section">
+    <div class="progress-info"><span>Progresso (Verde 🟢)</span><span id="progressLabel">0/0 (0%)</span></div>
+    <div class="progress-bar-bg"><div id="progressBar" class="progress-bar-fill"></div></div>
+  </div>
+  <div class="quadro-geral" id="quadro">
+    <div id="daysCols" style="display: contents;"></div>
+    <div class="col emergencial">
+      <div class="col-header"><span class="name">Emergencial</span><div class="col-actions"><button class="action-btn clip-btn" onclick="window.RotinaFBA.pickDayFiles('EMERGENCIAL')">📎</button><button class="plus-btn" onclick="window.RotinaFBA.addInput('EMERGENCIAL')">+</button></div></div>
+      <div id="shipmentsPanel"></div>
+      <div class="task-list" id="list-EMERGENCIAL"></div>
+      <div id="inputs-EMERGENCIAL"></div>
+    </div>
+  </div>
+</div>
+<div id="toast"></div>
+<div id="weeklyPanelBackdrop" class="weekly-panel-backdrop" onclick="window.RotinaFBA.toggleWeeklyAttachments(false)"></div>
+<div id="weeklyPanel" class="weekly-panel">
+  <div class="weekly-panel-header"><h3>📚 Anexos da semana</h3><button onclick="window.RotinaFBA.toggleWeeklyAttachments(false)">Fechar</button></div>
+  <div id="weeklyPanelBody" class="weekly-panel-body"></div>
+</div>
+
+<script type="module">
+  import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
+  const SUPABASE_URL = 'https://jkisikbukusqbrowguoh.supabase.co';
+  const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImpraXNpa2J1a3VzcWJyb3dndW9oIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODA0Mzc2NjUsImV4cCI6MjA5NjAxMzY2NX0.znD5O0vE7LnqR0lGBwMtrLZ8kGTj-YegJdgC40vdalo';
+  const supabase = createClient(SUPABASE_URL, SUPABASE_KEY, { realtime: { params: { eventsPerSecond: 10 } } });
+  const ATTACH_BUCKET = 'fba-attachments';
+  const RESPONSAVEIS = ['Não atribuído', 'Ricardo', 'Fabiana'];
+  const PRIORIDADES = ['Baixa', 'Média', 'Alta'];
+  const CODES = ['SEG','TER','QUA','QUI','SEX','SAB','DOM'];
+  const DAYS_PT = ['Segunda','Terça','Quarta','Quinta','Sexta','Sábado','Domingo'];
+  
+  let allTasks = [], weekStates = {}, attachments = {}, shipments = [], openObs = new Set(), currentWeekStart = getMonday(new Date());
+  let activeInputs = new Set();
+  let focusedId = null;
+  let currentUser = null;
+  let realtimeChannel = null;
+  let lastLocalWriteAt = 0;
+  let flashTaskId = null;
+  let weeklyPanelOpen = false;
+
+  window.RotinaFBA = {};
+  const ALLOWED_EMAILS = ['rivelloshop1@gmail.com', 'fortello.store@gmail.com'];
+
+  function showLoginError(msg) {
+    const el = document.getElementById('loginError');
+    if (el) el.textContent = msg || '';
+  }
+
+  function normalizeEmail(email) {
+    return String(email || '').trim().toLowerCase();
+  }
+
+  function displayNameFromEmail(email) {
+    const e = normalizeEmail(email);
+    if (e === 'rivelloshop1@gmail.com') return 'Fabiana';
+    if (e === 'fortello.store@gmail.com') return 'Ricardo';
+    if (!e) return '';
+    return e;
+  }
+
+  async function showAppForUser(user) {
+    currentUser = user;
+    document.getElementById('loginScreen').style.display = 'none';
+    document.getElementById('mainApp').style.display = 'flex';
+    document.getElementById('userChip').style.display = 'inline-flex';
+    document.getElementById('logoutBtn').style.display = 'inline-block';
+    document.getElementById('userEmail').textContent = user?.email || 'usuário';
+    await loadData();
+    setupRealtime();
+  }
+
+  function showLoginScreen() {
+    currentUser = null;
+    document.getElementById('mainApp').style.display = 'none';
+    document.getElementById('loginScreen').style.display = 'flex';
+    document.getElementById('userChip').style.display = 'none';
+    document.getElementById('logoutBtn').style.display = 'none';
+    setRealtimeStatus('', 'Login necessário');
+  }
+
+  window.RotinaFBA.login = async () => {
+    showLoginError('');
+    const email = normalizeEmail(document.getElementById('loginEmail').value);
+    const password = document.getElementById('loginPassword').value;
+    if (!email || !password) {
+      showLoginError('Preencha e-mail e senha.');
+      return;
+    }
+    if (!ALLOWED_EMAILS.includes(email)) {
+      showLoginError('Este e-mail não está autorizado para acessar o dashboard.');
+      return;
+    }
+    const { data, error } = await supabase.auth.signInWithPassword({ email, password });
+    if (error) {
+      showLoginError('Login inválido. Confira e-mail e senha.');
+      console.error('Login error:', error);
+      return;
+    }
+    await showAppForUser(data.user);
+  };
+
+  window.RotinaFBA.logout = async () => {
+    if (realtimeChannel) await supabase.removeChannel(realtimeChannel);
+    realtimeChannel = null;
+    await supabase.auth.signOut();
+    showLoginScreen();
+  };
+
+  function getMonday(d) { const date = new Date(d); date.setHours(0,0,0,0); const day = date.getDay(); date.setDate(date.getDate() + (day === 0 ? -6 : 1 - day)); return date; }
+  const formatDateISO = d => d.toISOString().split('T')[0];
+  const formatDateBR = d => d.toLocaleDateString('pt-BR', { day:'2-digit', month:'2-digit' });
+  
+  function showToast(msg, type='success') { 
+    const t = document.getElementById('toast'); 
+    t.textContent = msg; 
+    t.className = type;
+    t.style.opacity = '1'; 
+    setTimeout(() => t.style.opacity = '0', 3000); 
+  }
+  function setRealtimeStatus(state, label) {
+    const el = document.getElementById('rtIndicator');
+    const txt = document.getElementById('rtLabel');
+    if (!el || !txt) return;
+    el.className = 'rt-indicator ' + (state || '');
+    txt.textContent = label;
+  }
+  function escapeHtml(value) {
+    return String(value ?? '').replace(/[&<>"']/g, ch => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[ch]));
+  }
+  function currentWeekISO() { return formatDateISO(currentWeekStart); }
+
+  function attKey(scopeType, ref) { return `${scopeType}:${ref}`; }
+  function getAttachments(scopeType, ref) { return attachments[attKey(scopeType, ref)] || []; }
+  function attachmentCount(scopeType, ref) { return getAttachments(scopeType, ref).length; }
+  function safeFileName(name) {
+    return String(name || 'arquivo')
+      .normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+      .replace(/[^a-zA-Z0-9._-]+/g, '-')
+      .replace(/-+/g, '-')
+      .slice(0, 120);
+  }
+  function formatBytes(bytes) {
+    const n = Number(bytes || 0);
+    if (n < 1024) return `${n} B`;
+    if (n < 1024 * 1024) return `${Math.round(n/1024)} KB`;
+    return `${(n/(1024*1024)).toFixed(1)} MB`;
+  }
+
+  function getTaskById(taskId) {
+    return allTasks.find(t => String(t.id) === String(taskId));
+  }
+  function dayNameFromCode(code) {
+    const idx = CODES.indexOf(String(code || '').toUpperCase());
+    return idx >= 0 ? DAYS_PT[idx] : (code || 'Dia');
+  }
+  function allWeekAttachments() {
+    return Object.values(attachments).flat().sort((a,b) => String(a.created_at || '').localeCompare(String(b.created_at || '')));
+  }
+
+  function isManualTask(task) {
+    return task?.is_manual === true || String(task?.id || '').startsWith('custom-');
+  }
+
+  function isTemplateTask(task) {
+    return !isManualTask(task) && !task?.deleted_at;
+  }
+
+  function taskBelongsToCurrentWeek(task) {
+    if (task?.deleted_at) return false;
+    if (isManualTask(task)) return String(task.week_start || '') === currentWeekISO();
+    return true;
+  }
+
+
+
+  function applyRemoteState(row) {
+    if (!row || !row.task_id) return;
+    if (row.week_start !== currentWeekISO()) return;
+    if (Date.now() - lastLocalWriteAt < 900) return;
+    if (focusedId || activeInputs.size > 0) return;
+    weekStates[row.task_id] = row;
+    flashTaskId = String(row.task_id);
+    render();
+    showToast('Atualização recebida', 'success');
+    setTimeout(() => { if (flashTaskId === String(row.task_id)) { flashTaskId = null; render(); } }, 1300);
+  }
+
+  function applyRemoteTemplateChange() {
+    if (focusedId || activeInputs.size > 0) return;
+    loadData();
+  }
+
+  function setupRealtime() {
+    if (realtimeChannel) supabase.removeChannel(realtimeChannel);
+    setRealtimeStatus('', 'Conectando...');
+    realtimeChannel = supabase
+      .channel('rotina-fba-live')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'routine_task_states' }, payload => {
+        if (payload.eventType === 'DELETE') {
+          if (payload.old?.week_start === currentWeekISO()) {
+            delete weekStates[payload.old.task_id];
+            render();
+          }
+          return;
+        }
+        applyRemoteState(payload.new);
+      })
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'routine_tasks' }, () => applyRemoteTemplateChange())
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'routine_attachments' }, payload => {
+        if (payload.new?.week_start === currentWeekISO() || payload.old?.week_start === currentWeekISO()) loadData();
+      })
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'routine_shipments' }, payload => {
+        if (payload.new?.week_start === currentWeekISO() || payload.old?.week_start === currentWeekISO()) loadData();
+      })
+      .subscribe(status => {
+        if (status === 'SUBSCRIBED') setRealtimeStatus('live', 'Ao vivo');
+        if (['CHANNEL_ERROR','TIMED_OUT','CLOSED'].includes(status)) setRealtimeStatus('error', 'Desconectado');
+      });
+  }
+
+  window.addEventListener('beforeunload', () => {
+    if (realtimeChannel) supabase.removeChannel(realtimeChannel);
+  });
+
+  async function loadData() {
+    if (focusedId || activeInputs.size > 0) return;
+    const iso = formatDateISO(currentWeekStart);
+    document.getElementById('weekLabel').textContent = `${formatDateBR(currentWeekStart)} — ${formatDateBR(new Date(currentWeekStart.getTime() + 6*24*60*60*1000))}`;
+    const [t, s, a, sh] = await Promise.all([
+      supabase.from('routine_tasks').select('*'),
+      supabase.from('routine_task_states').select('*').eq('week_start', iso),
+      supabase.from('routine_attachments').select('*').eq('week_start', iso).order('created_at', { ascending: true }),
+      supabase.from('routine_shipments').select('*').eq('week_start', iso).order('created_at', { ascending: true })
+    ]);
+    if (t.error || s.error || a.error || sh.error) {
+      showToast('Erro ao carregar dados', 'error');
+      console.error('Supabase load error:', t.error || s.error || a.error || sh.error);
+      return;
+    }
+    const rawTasks = t.data || [];
+    // Regra v1.7.1:
+    // - tarefas padrão/template aparecem em toda semana;
+    // - tarefas manuais aparecem somente na semana em que foram criadas;
+    // - semanas futuras começam limpas de histórico, anexos, responsável e status.
+    allTasks = rawTasks.filter(taskBelongsToCurrentWeek);
+    weekStates = {}; (s.data || []).forEach(row => weekStates[row.task_id] = row);
+    shipments = sh.data || [];
+    attachments = {};
+    (a.data || []).forEach(row => {
+      const key = row.scope_type === 'task' ? attKey('task', row.task_id) : attKey('day', row.day_code);
+      if (!attachments[key]) attachments[key] = [];
+      attachments[key].push(row);
+    });
+    render();
+    if (weeklyPanelOpen) renderWeeklyAttachmentsPanel();
+  }
+
+  window.RotinaFBA.changeWeek = (n) => { currentWeekStart.setDate(currentWeekStart.getDate() + (n * 7)); loadData(); };
+  window.RotinaFBA.goToday = () => { currentWeekStart = getMonday(new Date()); loadData(); };
+  window.RotinaFBA.refreshDashboard = async () => {
+    showToast('Atualizando dashboard...');
+    await loadData();
+    showToast('Dashboard atualizado');
+  };
+  
+  async function upsert(taskId, patch) {
+    const iso = formatDateISO(currentWeekStart);
+    const payload = {
+      week_start: iso,
+      task_id: taskId,
+      ...patch,
+      updated_at: new Date().toISOString(),
+      updated_by_email: currentUser?.email || null
+    };
+    if (!weekStates[taskId]?.created_by_email) payload.created_by_email = currentUser?.email || null;
+    lastLocalWriteAt = Date.now();
+    const { error } = await supabase.from('routine_task_states').upsert(payload, { onConflict: 'week_start,task_id', returning: 'minimal' });
+    if (error) {
+      showToast('Erro técnico ao salvar', 'error');
+      console.error('Supabase save error:', error);
+    } else { 
+      weekStates[taskId] = { ...weekStates[taskId], ...patch }; 
+      showToast('Salvo com sucesso!');
+      updateProgress(); 
+    }
+  }
+
+
+  window.RotinaFBA.pickTaskFiles = (taskId) => pickFiles('task', taskId);
+  window.RotinaFBA.pickDayFiles = (dayCode) => pickFiles('day', dayCode);
+  window.RotinaFBA.openAttachment = async (filePath) => {
+    const { data, error } = await supabase.storage.from(ATTACH_BUCKET).createSignedUrl(filePath, 60 * 60);
+    if (error || !data?.signedUrl) {
+      showToast('Erro ao abrir anexo', 'error');
+      console.error('Signed URL error:', error);
+      return;
+    }
+    window.open(data.signedUrl, '_blank');
+  };
+  window.RotinaFBA.downloadAttachment = async (filePath, fileName) => {
+    const { data, error } = await supabase.storage.from(ATTACH_BUCKET).createSignedUrl(filePath, 60 * 60);
+    if (error || !data?.signedUrl) {
+      showToast('Erro ao baixar anexo', 'error');
+      console.error('Signed URL download error:', error);
+      return;
+    }
+    const a = document.createElement('a');
+    a.href = data.signedUrl;
+    a.download = fileName || 'anexo';
+    a.target = '_blank';
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+  };
+  window.RotinaFBA.deleteAttachment = async (attachmentId, filePath) => {
+    if (!confirm('Remover este anexo?')) return;
+    const { error: storageError } = await supabase.storage.from(ATTACH_BUCKET).remove([filePath]);
+    const { error: dbError } = await supabase.from('routine_attachments').delete().eq('id', attachmentId);
+    if (storageError || dbError) {
+      showToast('Erro ao remover anexo', 'error');
+      console.error('Delete attachment error:', storageError || dbError);
+      return;
+    }
+    showToast('Anexo removido');
+    loadData();
+  };
+
+  function pickFiles(scopeType, ref) {
+    const input = document.createElement('input');
+    input.type = 'file';
+    input.multiple = true;
+    input.onchange = async () => {
+      if (input.files && input.files.length) await uploadFiles(scopeType, ref, Array.from(input.files));
+    };
+    input.click();
+  }
+
+  async function uploadFiles(scopeType, ref, files) {
+    const iso = currentWeekISO();
+    if (!files.length) return;
+    showToast(`Enviando ${files.length} anexo(s)...`);
+    for (const file of files) {
+      const id = (crypto && crypto.randomUUID) ? crypto.randomUUID() : String(Date.now()) + '-' + Math.random().toString(16).slice(2);
+      const scopeFolder = scopeType === 'task' ? `task-${ref}` : `day-${ref}`;
+      const filePath = `${iso}/${scopeFolder}/${id}-${safeFileName(file.name)}`;
+      const { error: uploadError } = await supabase.storage
+        .from(ATTACH_BUCKET)
+        .upload(filePath, file, { cacheControl: '3600', upsert: false, contentType: file.type || 'application/octet-stream' });
+      if (uploadError) {
+        showToast(`Erro ao anexar: ${file.name}`, 'error');
+        console.error('Upload error:', uploadError);
+        continue;
+      }
+      const row = {
+        week_start: iso,
+        scope_type: scopeType,
+        task_id: scopeType === 'task' ? String(ref) : null,
+        day_code: scopeType === 'day' ? String(ref) : null,
+        file_name: file.name,
+        file_path: filePath,
+        file_size: file.size,
+        mime_type: file.type || null,
+        uploaded_by_email: currentUser?.email || null
+      };
+      const { error: insertError } = await supabase.from('routine_attachments').insert(row);
+      if (insertError) {
+        showToast(`Erro ao registrar anexo: ${file.name}`, 'error');
+        console.error('Attachment row error:', insertError);
+      }
+    }
+    showToast('Anexo(s) enviado(s)');
+    loadData();
+  }
+
+  function renderAttachmentList(scopeType, ref) {
+    const items = getAttachments(scopeType, ref);
+    if (!items.length) return '';
+    const label = scopeType === 'task' ? 'Anexos da tarefa' : 'Anexos do dia';
+    return `<div class="attach-list"><div class="attach-title">📎 ${label}</div>${items.map(a => `
+      <div class="attach-item" title="${escapeHtml(a.file_name)} · ${formatBytes(a.file_size)}">
+        <span class="attach-file-name">${escapeHtml(a.file_name)}</span>
+        <button class="attach-mini" onclick="window.RotinaFBA.openAttachment('${escapeHtml(a.file_path)}')">Abrir</button>
+        <button class="attach-mini" onclick="window.RotinaFBA.downloadAttachment('${escapeHtml(a.file_path)}','${escapeHtml(a.file_name)}')">Baixar</button>
+        <button class="attach-mini del" onclick="window.RotinaFBA.deleteAttachment('${escapeHtml(a.id)}','${escapeHtml(a.file_path)}')">Excluir</button>
+      </div>`).join('')}</div>`;
+  }
+
+  window.RotinaFBA.toggleWeeklyAttachments = (force) => {
+    weeklyPanelOpen = typeof force === 'boolean' ? force : !weeklyPanelOpen;
+    const panel = document.getElementById('weeklyPanel');
+    const backdrop = document.getElementById('weeklyPanelBackdrop');
+    if (!panel || !backdrop) return;
+    panel.classList.toggle('open', weeklyPanelOpen);
+    backdrop.classList.toggle('open', weeklyPanelOpen);
+    if (weeklyPanelOpen) renderWeeklyAttachmentsPanel();
+  };
+
+  function renderWeeklyAttachmentsPanel() {
+    const body = document.getElementById('weeklyPanelBody');
+    if (!body) return;
+    const items = allWeekAttachments();
+    if (!items.length) {
+      body.innerHTML = '<div class="weekly-att-card">Nenhum anexo nesta semana.</div>';
+      return;
+    }
+    body.innerHTML = items.map(a => {
+      const task = a.scope_type === 'task' ? getTaskById(a.task_id) : null;
+      const origem = a.scope_type === 'task'
+        ? `Tarefa: ${escapeHtml(task?.task_text || a.task_id || 'sem identificação')}`
+        : `Dia: ${escapeHtml(dayNameFromCode(a.day_code))}`;
+      return `<div class="weekly-att-card">
+        <div class="weekly-att-meta">${origem} · ${formatBytes(a.file_size)}</div>
+        <div class="weekly-att-name">📎 ${escapeHtml(a.file_name || 'anexo')}</div>
+        <div class="weekly-att-actions">
+          <button onclick="window.RotinaFBA.openAttachment('${escapeHtml(a.file_path)}')">Abrir</button>
+          <button onclick="window.RotinaFBA.downloadAttachment('${escapeHtml(a.file_path)}','${escapeHtml(a.file_name || 'anexo')}')">Baixar</button>
+          <button class="del" onclick="window.RotinaFBA.deleteAttachment('${escapeHtml(a.id)}','${escapeHtml(a.file_path)}')">Excluir</button>
+        </div>
+      </div>`;
+    }).join('');
+  }
+
+
+  function emptyBox(n) {
+    return { box_number: n, quantity: '', product: '' };
+  }
+
+  function normalizeBoxes(boxes) {
+    const arr = Array.isArray(boxes) && boxes.length ? boxes : [emptyBox(1)];
+    return arr.map((b, idx) => ({
+      box_number: idx + 1,
+      quantity: b?.quantity ?? '',
+      product: b?.product ?? ''
+    }));
+  }
+
+  window.RotinaFBA.createShipment = async () => {
+    const row = {
+      week_start: currentWeekISO(),
+      shipment_date: '',
+      boxes: [emptyBox(1)],
+      created_by_email: currentUser?.email || null,
+      updated_by_email: currentUser?.email || null,
+      updated_at: new Date().toISOString()
+    };
+    const { error } = await supabase.from('routine_shipments').insert(row);
+    if (error) {
+      showToast('Erro ao criar envio Amazon', 'error');
+      console.error('Create shipment error:', error);
+      return;
+    }
+    showToast('Envio Amazon criado');
+    await loadData();
+  };
+
+  async function updateShipment(shipmentId, patch) {
+    const { error } = await supabase.from('routine_shipments').update({
+      ...patch,
+      updated_by_email: currentUser?.email || null,
+      updated_at: new Date().toISOString()
+    }).eq('id', shipmentId);
+    if (error) {
+      showToast('Erro ao salvar envio Amazon', 'error');
+      console.error('Update shipment error:', error);
+      return false;
+    }
+    showToast('Envio salvo');
+    return true;
+  }
+
+  window.RotinaFBA.updateShipmentDate = async (shipmentId, value) => {
+    const sh = shipments.find(x => String(x.id) === String(shipmentId));
+    if (sh) sh.shipment_date = value;
+    await updateShipment(shipmentId, { shipment_date: value });
+    await loadData();
+  };
+
+  window.RotinaFBA.updateShipmentBox = async (shipmentId, idx, field, value) => {
+    const sh = shipments.find(x => String(x.id) === String(shipmentId));
+    if (!sh) return;
+    const boxes = normalizeBoxes(sh.boxes);
+    boxes[idx][field] = value;
+    sh.boxes = boxes;
+    await updateShipment(shipmentId, { boxes });
+  };
+
+  window.RotinaFBA.addShipmentBox = async (shipmentId) => {
+    const sh = shipments.find(x => String(x.id) === String(shipmentId));
+    if (!sh) return;
+    const boxes = normalizeBoxes(sh.boxes);
+    boxes.push(emptyBox(boxes.length + 1));
+    sh.boxes = boxes;
+    await updateShipment(shipmentId, { boxes });
+    await loadData();
+  };
+
+  window.RotinaFBA.deleteShipment = async (shipmentId) => {
+    if (!confirm('Excluir este envio Amazon da semana?')) return;
+    const { error } = await supabase.from('routine_shipments').delete().eq('id', shipmentId);
+    if (error) {
+      showToast('Erro ao excluir envio Amazon', 'error');
+      console.error('Delete shipment error:', error);
+      return;
+    }
+    showToast('Envio excluído');
+    await loadData();
+  };
+
+  function renderShipmentsPanel() {
+    const el = document.getElementById('shipmentsPanel');
+    if (!el) return;
+    const cards = shipments.map((sh, sidx) => {
+      const boxes = normalizeBoxes(sh.boxes);
+      return `<div class="shipment-card">
+        <div class="shipment-card-header"><strong>📦 Envio ${sidx + 1}</strong><button class="shipment-small-btn del" onclick="window.RotinaFBA.deleteShipment('${escapeHtml(sh.id)}')">Excluir envio</button></div>
+        <div class="shipment-date"><span>Envio:</span><input class="shipment-input" placeholder="dia/mês/ano" value="${escapeHtml(sh.shipment_date || '')}" onblur="window.RotinaFBA.updateShipmentDate('${escapeHtml(sh.id)}', this.value)"></div>
+        ${boxes.map((box, idx) => `<div class="shipment-row">
+          <label>Caixa ${idx + 1}</label>
+          <input class="shipment-input" placeholder="Qtd" value="${escapeHtml(box.quantity || '')}" onblur="window.RotinaFBA.updateShipmentBox('${escapeHtml(sh.id)}', ${idx}, 'quantity', this.value)">
+          <input class="shipment-input" placeholder="Produto a ser enviado" value="${escapeHtml(box.product || '')}" onblur="window.RotinaFBA.updateShipmentBox('${escapeHtml(sh.id)}', ${idx}, 'product', this.value)">
+        </div>`).join('')}
+        <div class="shipment-actions"><button class="shipment-small-btn" onclick="window.RotinaFBA.addShipmentBox('${escapeHtml(sh.id)}')">+ Caixa</button></div>
+        <div class="task-audit">${sh.created_by_email ? `Criado por: ${escapeHtml(displayNameFromEmail(sh.created_by_email))}` : ''}${sh.updated_by_email ? `<span>Alterado por: ${escapeHtml(displayNameFromEmail(sh.updated_by_email))}</span>` : ''}</div>
+      </div>`;
+    }).join('');
+    el.innerHTML = `<div class="shipment-panel"><div class="shipment-title"><span>📦 Envios / Remessas Amazon</span><button class="shipment-small-btn" onclick="window.RotinaFBA.createShipment()">+ Novo envio</button></div>${cards || '<div class="shipment-empty">Nenhum envio cadastrado nesta semana.</div>'}</div>`;
+  }
+
+  window.RotinaFBA.addInput = (dayCode) => {
+    activeInputs.add(dayCode);
+    const div = document.createElement('div'); div.className = 'add-task-box';
+    div.innerHTML = `<textarea class="add-task-area" placeholder="Nova tarefa... você pode escrever várias linhas aqui"></textarea>
+      <div style="display:flex; gap:5px;">
+        <button class="save-btn" onclick="window.RotinaFBA.saveTask('${dayCode}', this)">Salvar</button>
+        <button class="action-btn" style="font-size:8px;" onclick="window.RotinaFBA.removeInput('${dayCode}', this)">X</button>
+      </div>`;
+    document.getElementById(`inputs-${dayCode}`).appendChild(div);
+    div.querySelector('textarea').focus();
+    // Rolar para o final da coluna ao abrir o input
+    const list = document.getElementById(`list-${dayCode}`);
+    list.scrollTop = list.scrollHeight;
+  };
+
+  window.RotinaFBA.removeInput = (dayCode, btn) => {
+    btn.parentElement.parentElement.remove();
+    if (document.getElementById(`inputs-${dayCode}`).children.length === 0) activeInputs.delete(dayCode);
+  };
+
+  window.RotinaFBA.saveTask = async function(dayCode, btn) {
+    const text = btn.parentElement.parentElement.querySelector('textarea').value;
+    if (!text.trim()) return;
+    const iso = currentWeekISO();
+
+    // v1.7.1: tarefas criadas manualmente ficam presas à semana atual.
+    // Elas NÃO entram no modelo fixo da rotina e NÃO aparecem nas semanas futuras.
+    const newTask = {
+      id: 'custom-' + Date.now() + '-' + Math.random().toString(16).slice(2, 8),
+      day_code: dayCode,
+      task_text: text.trim(),
+      block_name: dayCode === 'EMERGENCIAL' ? 'Emergencial' : 'Tarefas adicionais',
+      is_manual: true,
+      week_start: iso,
+      created_by_email: currentUser?.email || null,
+      deleted_at: null
+    };
+
+    const { data, error } = await supabase.from('routine_tasks').insert(newTask).select().single();
+    if (error) {
+      showToast('Erro ao criar tarefa: ' + (error.message || 'ver console'), 'error');
+      console.error('Create task error:', error);
+    } else { 
+      allTasks.push(data); 
+      window.RotinaFBA.removeInput(dayCode, btn);
+      showToast('Tarefa criada nesta semana.');
+      render(); 
+    }
+  };
+
+  window.RotinaFBA.deleteTask = async function(taskId) {
+    const task = getTaskById(taskId);
+    if (!task || !isManualTask(task)) {
+      showToast('Somente tarefas criadas manualmente podem ser excluídas.', 'error');
+      return;
+    }
+    if (!confirm('Excluir esta tarefa manual desta semana? Os anexos dela também serão removidos.')) return;
+    const iso = currentWeekISO();
+    const taskFiles = getAttachments('task', taskId);
+    if (taskFiles.length) {
+      const paths = taskFiles.map(a => a.file_path).filter(Boolean);
+      if (paths.length) await supabase.storage.from(ATTACH_BUCKET).remove(paths);
+    }
+    const { error: attError } = await supabase.from('routine_attachments').delete().eq('week_start', iso).eq('task_id', String(taskId));
+    const { error: stateError } = await supabase.from('routine_task_states').delete().eq('week_start', iso).eq('task_id', String(taskId));
+    const { error: taskError } = await supabase.from('routine_tasks').delete().eq('id', String(taskId));
+    if (attError || stateError || taskError) {
+      showToast('Erro ao excluir tarefa', 'error');
+      console.error('Delete task error:', attError || stateError || taskError);
+      return;
+    }
+    showToast('Tarefa excluída.');
+    await loadData();
+  };
+
+  window.RotinaFBA.cycleFarol = (taskId) => {
+    const current = weekStates[taskId]?.status || 'todo';
+    const nextStatus = current === 'todo' ? 'doing' : (current === 'doing' ? 'done' : 'todo');
+    const done = nextStatus === 'done';
+    const completedAt = done ? new Date().toISOString() : null;
+    weekStates[taskId] = { ...weekStates[taskId], status: nextStatus, done, completed_at: completedAt };
+    updateProgress(); render(); upsert(taskId, { status: nextStatus, done, completed_at: completedAt });
+  };
+
+  function updateProgress() {
+    const total = allTasks.length;
+    const done = Object.values(weekStates).filter(s => s.status === 'done').length;
+    const pct = total ? Math.round((done/total)*100) : 0;
+    document.getElementById('progressLabel').textContent = `${done}/${total} (${pct}%)`;
+    document.getElementById('progressBar').style.width = `${pct}%`;
+  }
+
+  function renderTask(t) {
+    const st = weekStates[t.id] || {}, status = st.status || 'todo', prio = st.prioridade || 'Média';
+    const flashClass = flashTaskId === String(t.id) ? 'flash' : '';
+    const respValue = st.responsavel || 'Não atribuído';
+    return `<div class="task ${status === 'done' ? 'done' : ''} ${flashClass}"><div style="display:flex; gap:5px;">
+      <div class="farol" data-state="${status}" onclick="window.RotinaFBA.cycleFarol('${t.id}')"></div>
+      <div style="flex:1"><div class="task-text">${escapeHtml(t.task_text)}</div><div class="task-controls">
+      <select class="resp-select" onchange="window.RotinaFBA.upsert('${t.id}', {responsavel: this.value})">${RESPONSAVEIS.map(r => `<option ${respValue===r?'selected':''}>${escapeHtml(r)}</option>`).join('')}</select>
+      <select class="prio-select" data-prio="${escapeHtml(prio)}" onchange="this.dataset.prio=this.value; window.RotinaFBA.upsert('${t.id}', {prioridade: this.value})">${PRIORIDADES.map(p => `<option ${prio===p?'selected':''}>${escapeHtml(p)}</option>`).join('')}</select>
+      <button class="action-btn clip-btn ${attachmentCount('task', t.id)?'has-files':''}" onclick="window.RotinaFBA.pickTaskFiles('${t.id}')" title="Anexar documentos">📎 Anexar${attachmentCount('task', t.id) ? ' (' + attachmentCount('task', t.id) + ')' : ''}</button>
+      ${isManualTask(t) ? `<button class="action-btn delete-task-btn" onclick="window.RotinaFBA.deleteTask('${escapeHtml(t.id)}')" title="Excluir tarefa manual">🗑 Excluir</button>` : ''}</div>
+      ${renderAttachmentList('task', t.id)}
+      <div class="obs-visible ${st.observacao ? 'has-comment' : ''}">
+        <div class="obs-title"><span>📝 Observações</span><span>${st.observacao ? 'visível' : 'sem comentário'}</span></div>
+        <textarea class="obs-textarea" onfocus="focusedId='${t.id}'" onblur="focusedId=null; window.RotinaFBA.upsert('${t.id}', {observacao: this.value})" placeholder="Escreva aqui observações, pendências, histórico da tarefa...">${escapeHtml(st.observacao || '')}</textarea>
+      </div>
+      <div class="task-audit">${isManualTask(t) && t.created_by_email ? `Criado por: ${escapeHtml(displayNameFromEmail(t.created_by_email))}` : ''}${st.updated_by_email ? `<span>Alterado por: ${escapeHtml(displayNameFromEmail(st.updated_by_email))}</span>` : ''}</div>
+      </div></div></div>`;
+  }
+
+  window.RotinaFBA.toggleObs = (id) => { if(openObs.has(id)) openObs.delete(id); else openObs.add(id); render(); };
+  window.RotinaFBA.upsert = (id, p) => upsert(id, p);
+
+  function render() {
+    renderShipmentsPanel();
+    document.getElementById('list-EMERGENCIAL').innerHTML = renderAttachmentList('day','EMERGENCIAL') + allTasks.filter(t => t.day_code === 'EMERGENCIAL').map(renderTask).join('');
+    document.getElementById('daysCols').innerHTML = CODES.map((c, i) => `<div class="col">
+      <div class="col-header"><span class="name">${DAYS_PT[i]}</span><div class="col-actions"><button class="action-btn clip-btn ${attachmentCount('day', c)?'has-files':''}" onclick="window.RotinaFBA.pickDayFiles('${c}')" title="Anexos do dia">📎${attachmentCount('day', c) || ''}</button><button class="plus-btn" onclick="window.RotinaFBA.addInput('${c}')">+</button></div></div>
+      <div class="task-list" id="list-${c}">${renderAttachmentList('day', c)}${allTasks.filter(t => t.day_code === c).map(renderTask).join('')}</div><div id="inputs-${c}"></div></div>`).join('');
+    updateProgress();
+    const countEl = document.getElementById('weeklyAttachCount');
+    if (countEl) countEl.textContent = String(allWeekAttachments().length);
+    if (weeklyPanelOpen) renderWeeklyAttachmentsPanel();
+  }
+
+
+  document.addEventListener('keydown', (event) => {
+    if (event.key === 'Enter' && document.getElementById('loginScreen')?.style.display !== 'none') {
+      window.RotinaFBA.login();
+    }
+  });
+
+  async function initAuth() {
+    const { data } = await supabase.auth.getSession();
+    const user = data?.session?.user;
+    if (user && ALLOWED_EMAILS.includes(normalizeEmail(user.email))) {
+      await showAppForUser(user);
+    } else {
+      if (user) await supabase.auth.signOut();
+      showLoginScreen();
+    }
+  }
+
+  initAuth();
+  // Atualização de segurança: mantém sync mesmo se o navegador derrubar o canal realtime.
+  setInterval(() => { if (currentUser) loadData(); }, 30000);
+</script>
+</body>
+</html>
